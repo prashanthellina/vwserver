@@ -4,6 +4,8 @@ A python based RPC server that encapsulates the functionality of Vowpal Wabbit m
 to integrate it into your data workflow. The RPC protocol is language agnostic so you can
 access from any kind of platform.
 
+![Image](./vwserver_screenshot.png?raw=true)
+
 ## Installation
 
 ``` bash

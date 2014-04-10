@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import signal
 import socket
+import threading
 
 from funcserver import RPCServer
 
@@ -33,25 +34,92 @@ def get_free_port():
     s.close()
     return port
 
-def sleep_until(fn):
+def sleep_until(fn, timeout=25.0):
     '''
     Sleeps until fn returns True. Performing sleeping
     in incrementing sections based on exponential
     backoff
     '''
+    telapsed = 0
+
     for t in (.1, .2, .4, .8, 1.6, 3.2, 6.4, 12.8):
         if not fn(): time.sleep(t)
+        telapsed += t
+        if telapsed > timeout: break
 
     return fn()
+
+class VWSocket(object):
+    CHUNK_SIZE = 4096
+
+    def __init__(self, vw, on_fatal_failure=None):
+        self.vw = vw
+        self.log = vw.log
+        self.port = vw.port
+        self.lock = threading.RLock()
+        self.on_fatal_failure = on_fatal_failure
+
+        sleep_until(self.connect, timeout=5.0)
+
+    def _recvlines(self, num):
+        n = 0
+        data = []
+
+        while n < num:
+            s = self.sock.recv(self.CHUNK_SIZE)
+            if '\n' in s:
+                last, s = s.rsplit('\n', 1)
+                data.append(last)
+
+                data = ''.join(data).split('\n')
+                for line in data:
+                    n += 1
+                    yield line
+
+                data = [s]
+
+    def connect(self):
+        try:
+            self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.sock.connect(('localhost', self.port))
+            return True
+        except socket.error:
+            return False
+
+    def reconnect(self):
+        if not self.connect():
+            if self.on_fatal_failure:
+                self.on_fatal_failure()
+
+        return True
+
+    def close(self):
+        self.sock.close()
+
+    def send_commands(self, commands, num_responses=None):
+        num_responses = num_responses if num_responses is not None else len(commands)
+
+        with self.lock:
+            try:
+                msg = '\n'.join(commands) + '\n'
+                self.sock.sendall(msg)
+
+                if num_responses:
+                    return list(self._recvlines(len(commands)))
+            except socket.error:
+                self.reconnect()
+                raise
 
 class VW(object):
     NUM_CHILD_PROCESSES = 8
 
-    def __init__(self, name, data_dir, log, options=None):
+    def __init__(self, name, data_dir, log, options=None, on_fatal_failure=None):
         self.log = log
         self.name = name
         self.data_dir = data_dir
         self.port = 0
+        self.sock = None
+        self.on_fatal_failure = on_fatal_failure
 
         self.options_fpath = os.path.join(data_dir, 'options')
         self.model_fpath = os.path.join(data_dir, 'model')
@@ -103,10 +171,12 @@ class VW(object):
             opts.append('--final_regressor %s' % self.model_fpath)
 
         # standard options
+        # NOTE: disabling cache because it is causing issues
+        # with online training
         opts.extend(['--daemon', '--no_stdin', '--save_resume', '--quiet',
                     '--num_children %s' % self.NUM_CHILD_PROCESSES,
                     '--pid_file %s' % self.pid_fpath,
-                    '--cache_file %s' % self.cache_fpath,
+                    #'--cache_file %s' % self.cache_fpath,
                     '--port %s' % self.port])
 
         # construct vw command
@@ -120,11 +190,8 @@ class VW(object):
         if not sleep_until(lambda: os.path.exists(self.pid_fpath)):
             raise Exception('Failed to execute vw process. Pid file not found.')
 
-        # check if command was successfull (check pid file)
-        print open(self.pid_fpath).read(), ret
-        return ret
-
         # initilize socket for communication
+        self.sock = VWSocket(self, on_fatal_failure=self.on_fatal_failure)
 
     def load_options(self):
         if os.path.exists(self.options_fpath):
@@ -135,14 +202,24 @@ class VW(object):
     def save_options(self):
         open(self.options_fpath, 'w').write(repr(self.options))
 
-    def unload(self):
-        pass
+    def save(self):
+        self.sock.send_commands(['save'], num_responses=0)
 
-    def destroy(self):
+    def train(self, examples):
+        return self.sock.send_commands(examples)
+
+    def predict(self, items):
+        return self.sock.send_commands(items)
+
+    def unload(self):
+        self.sock.close()
+
         pid = self.kill_vw_processes()
         if not sleep_until(lambda: not is_process_running(pid)):
             raise Exception('unable to kill vw process with pid %s' % pid)
 
+    def destroy(self):
+        self.unload()
         shutil.rmtree(self.data_dir)
 
 def ensurevw(fn):
@@ -153,7 +230,8 @@ def ensurevw(fn):
             raise Exception('vw "%s" does not exist' % vw)
 
         if vw not in self.vws:
-            self.vws[vw] = VW(vw, data_dir, log=self.log)
+            self.vws[vw] = VW(vw, data_dir, log=self.log,
+                on_fatal_failure=lambda: self.unload(vw))
 
         return fn(self, self.vws[vw], *args, **kwargs)
     return wfn
@@ -169,6 +247,9 @@ class VWAPI(object):
             raise Exception('Unexpected options: %s' % ','.join(extra_options))
 
     def create(self, name, options=None):
+        '''
+        Creates a new VW model with @name and using @options
+        '''
         options = options or VWOPTIONS
         self._check_options(options)
         data_dir = os.path.join(self.data_dir, name)
@@ -177,17 +258,76 @@ class VWAPI(object):
             raise Exception('vw model "%s" exists already' % name)
 
         os.makedirs(data_dir)
-        self.vws[name] = VW(name, data_dir, self.log, options)
+        self.vws[name] = VW(name, data_dir, self.log, options,
+            on_fatal_failure=lambda: self.unload(name))
 
-    @ensurevw
-    def dummy(self, vw):
-        #FIXME: remove this later
-        return True
+    def unload(self, vw):
+        '''
+        Unloads a VW model from memory. This does not
+        destroy the model from disk and so it can be
+        loaded again later for usage.
+        '''
+        if vw not in self.vws: return
+
+        vw = self.vws[vw]
+        vw.unload()
 
     @ensurevw
     def destroy(self, vw):
+        '''
+        Destroy the specified VW model from both memory
+        and disk permanently.
+        '''
         vw.destroy()
         del self.vws[vw.name]
+
+    def _check_item_format(self, item):
+        return not ('\n' in item or '\r' in item)
+
+    def _check_items(self, items):
+        for index, item in enumerate(items):
+            if not self._check_item_format(item):
+                raise Exception('Bad format for item at index %s' % index)
+
+    @ensurevw
+    def train(self, vw, examples):
+        '''
+        Train the @vw model using @examples
+        @examples - a list of strings representing example lines
+            in the VW format
+
+        returns: a list of response lines as returned by VW
+        '''
+        self._check_items(examples)
+        return vw.train(examples)
+
+    @ensurevw
+    def predict(self, vw, items):
+        '''
+        Perform prediction using @vw model on the provided @items.
+        @items - a list of strings representing the input lines
+            in the VW format
+
+        returns: a list of response lines as returned by VW
+        '''
+        self._check_items(items)
+        return vw.predict(items)
+
+    @ensurevw
+    def save(self, vw):
+        '''
+        Saves the model learnt so far
+        '''
+        vw.save()
+
+    def shutdown(self):
+        '''
+        Stop the server
+        '''
+        for vw in self.vws.itervalues():
+            vw.unload()
+
+        sys.exit(0)
 
 class VWServer(RPCServer):
     NAME = 'VWServer'
@@ -202,7 +342,7 @@ class VWServer(RPCServer):
             os.makedirs(self.data_dir)
 
     def prepare_api(self):
-        return VWAPI(self.args.data_dir)
+        return VWAPI(self.data_dir)
 
     def define_args(self, parser):
         parser.add_argument('data_dir', type=str, metavar='data-dir',
