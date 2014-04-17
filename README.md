@@ -22,7 +22,7 @@ vwserver --port 8889 data
 
 Now the server is running and is web accessible. Open http://localhost:8889 in the browser. You will see a web-based python console to interact with this VWServer.
 
-Try running the following commands and observer the output
+Try running the following commands and observe the output
 
 ``` python
 >>> dir()
@@ -64,3 +64,18 @@ class VWAPI(__builtin__.object)
  |  __weakref__
  |      list of weak references to the object (if defined)
  ```
+ 
+ Now let us check if there are any models currently loaded (We expect to see none as we are just starting off)
+ 
+ ``` python
+ >>> api.vws()
+ {}
+ ```
+ 
+ Let us create a new Vowpal Wabbit model.
+ 
+ ``` python
+ >>> api.create('foobar')
+ ```
+ 
+ And that's it! We are ready to use this for training and prediction. Try it out - You can refer to the image at the top of this document for a reference on how to perform training and prediction.
