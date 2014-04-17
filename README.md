@@ -92,6 +92,27 @@ If you want to see what options are available and their default values, do
 >>> api.show_options()
 ```
 
-These options are directly converted into command line parameters for the vw command.
+These options are directly converted into command line parameters for the vw command. Let us now clean-up by destroying both the models we created.
+
+``` python
+>>> api.destroy('foobar')
+>>> api.destroy('foobar1')
+```
 
 ## Accessing using a remote client
+
+In the document so far we have seen how to interact with the VWServer using it's web based python console. However for using it in a practical setting we will need a mechanism to access it remotely from another application. VWServer is built on top of [FuncServer](http://github.com/prashanthellina/funcserver) and hence supports having an API accessible over the network. Funcserver is a lightweight tool - you should check out it's documentation and code to get a better idea on how to interact with VWServer.
+
+Here is an example python script: example_client.py
+
+``` python
+from vwserver import VWClient
+
+vw = VWClient("http://localhost:8889")
+vw.create('foobar')
+
+# do what every training and prediction just like in the web based python console
+
+vw.destroy('foobar')
+# we are destroying only to cleanup as a part of this example. In a real scenario, you would want to keep the model!
+```
