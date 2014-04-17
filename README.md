@@ -12,3 +12,6 @@ access from any kind of platform.
 sudo pip install git+git://github.com/prashanthellina/funcserver.git
 sudo pip install gevent
 ```
+
+## Usage
+
