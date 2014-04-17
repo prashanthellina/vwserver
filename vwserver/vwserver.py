@@ -8,6 +8,8 @@ import subprocess
 import signal
 import socket
 import threading
+import copy
+from functools import wraps
 
 import tornado
 import websocket
@@ -225,6 +227,7 @@ class VW(object):
         shutil.rmtree(self.data_dir)
 
 def ensurevw(fn):
+    @wraps(fn)
     def wfn(self, vw, *args, **kwargs):
         data_dir = os.path.join(self.data_dir, vw)
 
@@ -247,6 +250,12 @@ class VWAPI(object):
         extra_options = set(options.iterkeys()) - set(VWOPTIONS.iterkeys())
         if extra_options:
             raise Exception('Unexpected options: %s' % ','.join(extra_options))
+
+    def show_options(self):
+        '''
+        Shows the allowed options and their default values
+        '''
+        return copy.deepcopy(VWOPTIONS)
 
     def create(self, name, options=None):
         '''
