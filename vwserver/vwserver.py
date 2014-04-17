@@ -11,6 +11,7 @@ import threading
 import copy
 from functools import wraps
 
+from decorator import decorator
 import tornado
 import websocket
 from funcserver import RPCServer, RPCClient
@@ -226,6 +227,7 @@ class VW(object):
         self.unload()
         shutil.rmtree(self.data_dir)
 
+@decorator
 def ensurevw(fn):
     @wraps(fn)
     def wfn(self, vw, *args, **kwargs):
