@@ -63,19 +63,35 @@ class VWAPI(__builtin__.object)
  |  
  |  __weakref__
  |      list of weak references to the object (if defined)
- ```
+```
  
  Now let us check if there are any models currently loaded (We expect to see none as we are just starting off)
  
- ``` python
- >>> api.vws()
- {}
- ```
+``` python
+>>> api.vws()
+{}
+```
  
  Let us create a new Vowpal Wabbit model.
  
- ``` python
- >>> api.create('foobar')
- ```
+``` python
+>>> api.create('foobar')
+```
  
- And that's it! We are ready to use this for training and prediction. Try it out - You can refer to the image at the top of this document for a reference on how to perform training and prediction.
+And that's it! We are ready to use this for training and prediction. Try it out - You can refer to the image at the top of this document for a reference on how to perform training and prediction.
+
+Note that we can pass options while creating a new VW model using the create method. Here is an example.
+
+``` python
+>>> api.create('foobar1', {'bit_precision': 20})
+```
+
+If you want to see what options are available and their default values, do
+
+``` python
+>>> api.show_options()
+```
+
+These options are directly converted into command line parameters for the vw command.
+
+## Accessing using a remote client
