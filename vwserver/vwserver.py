@@ -9,7 +9,9 @@ import signal
 import socket
 import threading
 
-from funcserver import RPCServer
+import tornado
+import websocket
+from funcserver import RPCServer, RPCClient
 
 VWOPTIONS = {
     'passes': 3,
@@ -329,6 +331,25 @@ class VWAPI(object):
 
         sys.exit(0)
 
+class VWClient(RPCClient):
+    pass
+
+class WSVWHandler(tornado.websocket.WebSocketHandler):
+
+    def open(self, vw):
+        self.server = self.application.funcserver
+        self.vw_name = vw
+        self.vw = self.server.api.get(vw, None)
+
+        if self.vw is None:
+            self.close()
+
+    def on_message(self, msg):
+        print 'received: ', msg
+
+    def on_close(self):
+        pass
+
 class VWServer(RPCServer):
     NAME = 'VWServer'
     DESC = 'Vowpal Wabbit Server'
@@ -343,6 +364,9 @@ class VWServer(RPCServer):
 
     def prepare_api(self):
         return VWAPI(self.data_dir)
+
+    def prepare_handlers(self):
+        return [('/ws/vw/([^/]+)', WSVWHandler)]
 
     def define_args(self, parser):
         parser.add_argument('data_dir', type=str, metavar='data-dir',

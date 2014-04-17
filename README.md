@@ -9,6 +9,7 @@ access from any kind of platform.
 ## Installation
 
 ``` bash
+sudo pip install websocket-client
 sudo pip install git+git://github.com/prashanthellina/funcserver.git
 sudo pip install gevent
 ```
