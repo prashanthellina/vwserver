@@ -39,16 +39,32 @@ class VWAPI(__builtin__.object)
  |  create(self, name, options=None)
  |      Creates a new VW model with @name and using @options
  |  
- |  destroy = wfn(self, vw, *args, **kwargs)
+ |  destroy(self, vw)
+ |      Destroy the specified VW model from both memory
+ |      and disk permanently.
  |  
- |  predict = wfn(self, vw, *args, **kwargs)
+ |  predict(self, vw, items)
+ |      Perform prediction using @vw model on the provided @items.
+ |      @items - a list of strings representing the input lines
+ |          in the VW format
+ |      
+ |      returns: a list of response lines as returned by VW
  |  
- |  save = wfn(self, vw, *args, **kwargs)
+ |  save(self, vw)
+ |      Saves the model learnt so far
+ |  
+ |  show_options(self)
+ |      Shows the allowed options and their default values
  |  
  |  shutdown(self)
  |      Stop the server
  |  
- |  train = wfn(self, vw, *args, **kwargs)
+ |  train(self, vw, examples)
+ |      Train the @vw model using @examples
+ |      @examples - a list of strings representing example lines
+ |          in the VW format
+ |      
+ |      returns: a list of response lines as returned by VW
  |  
  |  unload(self, vw)
  |      Unloads a VW model from memory. This does not
