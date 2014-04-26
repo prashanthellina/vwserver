@@ -1,4 +1,4 @@
-from gevent import monkey; monkey.patch_socket()
+from gevent import monkey; monkey.patch_all()
 
 import time
 import os
@@ -9,11 +9,10 @@ import signal
 import socket
 import threading
 import copy
-from functools import wraps
 
-from decorator import decorator
 import tornado
 import websocket
+from decorator import decorator
 from funcserver import RPCServer, RPCClient
 
 VWOPTIONS = {
@@ -228,20 +227,17 @@ class VW(object):
         shutil.rmtree(self.data_dir)
 
 @decorator
-def ensurevw(fn):
-    @wraps(fn)
-    def wfn(self, vw, *args, **kwargs):
-        data_dir = os.path.join(self.data_dir, vw)
+def ensurevw(fn, vw, *args, **kwargs):
+    data_dir = os.path.join(self.data_dir, vw)
 
-        if vw not in self.vws and not VW.exists(vw, data_dir):
-            raise Exception('vw "%s" does not exist' % vw)
+    if vw not in self.vws and not VW.exists(vw, data_dir):
+        raise Exception('vw "%s" does not exist' % vw)
 
-        if vw not in self.vws:
-            self.vws[vw] = VW(vw, data_dir, log=self.log,
-                on_fatal_failure=lambda: self.unload(vw))
+    if vw not in self.vws:
+        self.vws[vw] = VW(vw, data_dir, log=self.log,
+            on_fatal_failure=lambda: self.unload(vw))
 
-        return fn(self, self.vws[vw], *args, **kwargs)
-    return wfn
+    return fn(self, self.vws[vw], *args, **kwargs)
 
 class VWAPI(object):
     def __init__(self, data_dir):

@@ -10,8 +10,8 @@ setup(
     url="https://github.com/prashanthellina/vwserver",
     license='MIT License',
     install_requires=[
-        'decorator',
         'websocket-client',
+        'decorator',
         'gevent',
         'funcserver',
     ],
