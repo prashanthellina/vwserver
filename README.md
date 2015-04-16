@@ -17,7 +17,7 @@ sudo pip install git+git://github.com/prashanthellina/vwserver.git
 Start a VWServer by doing. Note that VWServer will use the specified directory "data" for storing all of its data. Make sure you do not have any of your own data there. You can change the port number to anything else you desire.
 
 ``` bash
-vwserver --port 8889 data
+vwserver --port 8889 data `which vw`
 ```
 
 Now the server is running and is web accessible. Open http://localhost:8889 in the browser. You will see a web-based python console to interact with this VWServer.

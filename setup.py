@@ -13,6 +13,8 @@ setup(
         'websocket-client',
         'decorator',
         'gevent',
+        'daemonize',
+        'psutil',
         'funcserver',
     ],
     dependency_links=[
